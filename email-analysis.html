@@ -81,7 +81,7 @@
   .dot{ width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
   @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.4;} }
   .status-pill .muted{ color:var(--text-faint); font-weight:500; }
-  .top-actions{ display:flex; align-items:center; gap:18px; }
+  .top-actions{ display:flex; align-items:center; gap:14px; }
   .profile{ display:flex; align-items:center; gap:10px; }
   .profile-text{ text-align:right; line-height:1.25; }
   .profile-text .who{ font-size:13px; font-weight:600; }
@@ -174,7 +174,7 @@
     background:var(--green);
     color:#04120a;
     border:none;
-    padding:12px 22px;
+    padding:10px 20px;
     border-radius:9px;
     font-weight:700;
     font-size:13px;
@@ -190,10 +190,10 @@
     border:1px solid var(--green-dim);
     color:var(--green);
     background:transparent;
-    padding:11px 18px;
+    padding:9px 16px;
     border-radius:9px;
     font-weight:600;
-    font-size:13px;
+    font-size:12.5px;
     cursor:pointer;
     font-family:var(--font-body);
     transition:background .15s;
@@ -282,6 +282,7 @@
 <body>
 <div class="app">
 
+  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="brand">
       <div class="brand-icon hoodie-icon">
@@ -350,12 +351,18 @@
     </div>
   </aside>
 
+  <!-- MAIN -->
   <main class="main">
     <div class="topbar">
       <div class="status-pill">
         <span class="dot"></span> SYSTEM ONLINE <span class="muted">&nbsp;Engine Active</span>
       </div>
       <div class="top-actions">
+        <!-- Key Config Button -->
+        <button class="btn-secondary" onclick="openKeyModal()">
+          🔑 API Key Setup
+        </button>
+
         <div class="profile">
           <div class="profile-text"><div class="who">Cyber Hunter</div><div class="role">Analyst</div></div>
           <div class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 11 4.6-2.3 8-6 8-11V5l-8-3Z"/></svg></div>
@@ -371,6 +378,7 @@
 
     <div class="layout-grid">
       
+      <!-- Input Panel -->
       <div class="card-panel">
         <h2>Inspect Suspicious Message</h2>
 
@@ -406,8 +414,10 @@
         </div>
       </div>
 
+      <!-- Result Panel -->
       <div>
         
+        <!-- Score Dial -->
         <div class="score-card" id="scoreCard">
           <div class="score-val" id="scoreVal">--</div>
           <div class="score-info">
@@ -416,6 +426,7 @@
           </div>
         </div>
 
+        <!-- AI Output Box -->
         <div class="ai-box">
           <div class="ai-tag">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 2-9 12h7l-1 8 9-12h-7z"/></svg>
@@ -426,6 +437,7 @@
           </div>
         </div>
 
+        <!-- Flag Breakdown -->
         <div class="card-panel">
           <h2>Detected Red Flags</h2>
           <ul class="flag-list" id="flagsList">
@@ -439,9 +451,56 @@
   </main>
 </div>
 
+<!-- API KEY SETUP MODAL -->
+<div id="keyModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(4px); z-index:999; align-items:center; justify-content:center;">
+  <div style="background:#10151c; border:1px solid var(--border); border-radius:14px; padding:24px; width:90%; max-width:440px; box-shadow:0 12px 36px rgba(0,0,0,0.6);">
+    <h3 style="font-family:var(--font-display); font-size:18px; margin-bottom:6px; color:var(--text); display:flex; align-items:center; gap:8px;">
+      🔑 Gemini API Key Configuration
+    </h3>
+    <p style="font-size:12px; color:var(--text-dim); margin-bottom:16px; line-height:1.5;">
+      Your key is stored securely in your browser's local cache. It is never pushed to GitHub or shared publicly.
+    </p>
+    
+    <div class="field">
+      <label>Enter Google Gemini API Key</label>
+      <input type="password" id="userApiKeyInput" placeholder="Paste your API key here...">
+    </div>
+
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+      <button class="btn-secondary" onclick="closeKeyModal()">Cancel</button>
+      <button class="btn-primary" onclick="saveApiKey()">Save Key</button>
+    </div>
+  </div>
+</div>
+
 <script>
-// Paste your key locally here for AI testing (Do NOT commit actual key to GitHub)
-const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+// LocalStorage Key Management Functions
+function openKeyModal() {
+  const modal = document.getElementById('keyModal');
+  modal.style.display = 'flex';
+  const savedKey = localStorage.getItem('GEMINI_API_KEY') || '';
+  document.getElementById('userApiKeyInput').value = savedKey;
+}
+
+function closeKeyModal() {
+  document.getElementById('keyModal').style.display = 'none';
+}
+
+function saveApiKey() {
+  const key = document.getElementById('userApiKeyInput').value.trim();
+  if (!key) {
+    localStorage.removeItem('GEMINI_API_KEY');
+    alert('API Key cleared.');
+  } else {
+    localStorage.setItem('GEMINI_API_KEY', key);
+    alert('API Key successfully saved in your browser!');
+  }
+  closeKeyModal();
+}
+
+function getStoredKey() {
+  return localStorage.getItem('GEMINI_API_KEY') || '';
+}
 
 let currentMode = 'body';
 
@@ -458,9 +517,14 @@ function setMode(mode) {
 
 async function runGeminiAnalysis(sender, subject, body) {
   const aiOutput = document.getElementById('aiOutput');
+  const activeKey = getStoredKey();
 
-  if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE") {
-    aiOutput.innerHTML = '<span style="color:var(--amber);">⚠️ Gemini API Key not configured. Rule-based heuristic checks completed above. Configure your Gemini API key to enable live AI reasoning.</span>';
+  if (!activeKey) {
+    aiOutput.innerHTML = `
+      <span style="color:var(--amber);">⚠️ Gemini API Key not configured. Heuristic rule analysis completed above.</span>
+      <div style="margin-top:10px;">
+        <button class="btn-secondary" style="padding:5px 12px; font-size:11.5px;" onclick="openKeyModal()">🔑 Enter API Key</button>
+      </div>`;
     return;
   }
 
@@ -487,7 +551,7 @@ Keep it sharp and professional.
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_API_KEY
+        "x-goog-api-key": activeKey
       },
       body: JSON.stringify({
         contents: [{ parts: [{ text: promptText }] }]
@@ -501,7 +565,7 @@ Keep it sharp and professional.
     } else if (data.error) {
       aiOutput.innerText = "API Error: " + data.error.message;
     } else {
-      aiOutput.innerText = "Unable to parse AI response.";
+      aiOutput.innerText = "Unable to parse AI response. Check API quota.";
     }
   } catch (err) {
     aiOutput.innerText = "Connection failed: " + err.message;
