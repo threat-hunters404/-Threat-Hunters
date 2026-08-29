@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Analysis — Threat Hunter's</title>
+<style>
+  :root{
+    --bg:#0a0e0c;
+    --panel:#10151285;
+    --panel-solid:#10151c;
+    --border:#1f2b24;
+    --border-soft:#182019;
+    --green:#3ddc6f;
+    --green-dim:#2a7a45;
+    --green-glow:#3ddc6f33;
+    --text:#e8f0ea;
+    --text-dim:#8fa398;
+    --text-faint:#5c6b62;
+    --red:#ff5c5c;
+    --red-glow:#ff5c5c26;
+    --amber:#ffb545;
+    --amber-glow:#ffb54522;
+    --purple:#9b6bff;
+    --purple-glow:#9b6bff33;
+    --font-display:'Space Grotesk', 'Segoe UI', sans-serif;
+    --font-body:'Inter', 'Segoe UI', sans-serif;
+    --font-mono:'JetBrains Mono', 'Courier New', monospace;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0;}
+
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  body{
+    background:
+      radial-gradient(ellipse 1200px 600px at 20% -10%, #0f1f14 0%, transparent 60%),
+      radial-gradient(ellipse 900px 500px at 90% 10%, #0d1a13 0%, transparent 55%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--font-body);
+    min-height:100vh;
+    background-attachment:fixed;
+  }
+
+  .app{
+    display:grid;
+    grid-template-columns:240px 1fr;
+    min-height:100vh;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    border-right:1px solid var(--border-soft);
+    padding:24px 16px;
+    display:flex;
+    flex-direction:column;
+    background:#0b0f0d;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; padding:0 8px 28px 8px; }
+  .brand-icon{ width:34px; height:34px; display:flex; align-items:center; justify-content:center; border:1.5px solid var(--green); border-radius:8px; color:var(--green); flex-shrink:0; }
+  .hoodie-icon{ width:44px; height:44px; border-radius:10px; background:radial-gradient(circle at 50% 30%, #0f2c1a, #05100a); box-shadow:0 0 14px var(--green-glow) inset; }
+  .brand-text{ line-height:1.15; }
+  .brand-text .name{ font-family:var(--font-display); font-weight:700; font-size:17px; letter-spacing:0.5px; }
+  .brand-text .sub{ font-size:9px; color:var(--text-faint); letter-spacing:1.5px; font-weight:500; }
+
+  nav{ display:flex; flex-direction:column; gap:2px; flex:1; }
+  .nav-item{ display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:8px; color:var(--text-dim); font-size:13.5px; font-weight:500; cursor:pointer; transition:background .15s, color .15s; position:relative; border:1px solid transparent; text-decoration:none !important; }
+  .nav-item svg{ width:17px; height:17px; flex-shrink:0; opacity:0.85; }
+  .nav-item:hover{ background:#141c17; color:var(--text); }
+  .nav-item.active{ background:linear-gradient(90deg, #163020, #10151a); color:var(--green); border-color:var(--border); }
+  .nav-item.active svg{ opacity:1; }
+  .nav-chevron{ margin-left:auto; width:14px !important; height:14px !important; }
+
+  .sidebar-footer{ font-size:10.5px; color:var(--text-faint); padding:16px 8px 0 8px; line-height:1.6; }
+
+  /* ---------- Main / Topbar ---------- */
+  .main{ padding:22px 28px 40px; overflow-x:hidden; }
+  .topbar{ display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; }
+  .status-pill{ display:flex; align-items:center; gap:9px; font-size:13px; font-weight:600; }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+  .status-pill .muted{ color:var(--text-faint); font-weight:500; }
+  .top-actions{ display:flex; align-items:center; gap:18px; }
+  .profile{ display:flex; align-items:center; gap:10px; }
+  .profile-text{ text-align:right; line-height:1.25; }
+  .profile-text .who{ font-size:13px; font-weight:600; }
+  .profile-text .role{ font-size:11px; color:var(--text-faint); }
+  .avatar{ width:36px; height:36px; border-radius:50%; background:linear-gradient(135deg, #1a3325, #0d1810); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--green); }
+  .avatar svg{ width:18px; height:18px; }
+
+  /* ---------- Email Analyzer UI ---------- */
+  .page-header{ margin-bottom:24px; }
+  .eyebrow{ font-family:var(--font-mono); font-size:11.5px; color:var(--green); letter-spacing:3px; text-transform:uppercase; margin-bottom:8px; display:flex; align-items:center; gap:8px; }
+  .page-header h1{ font-family:var(--font-display); font-size:clamp(26px,3.5vw,36px); font-weight:700; letter-spacing:-0.5px; margin-bottom:8px; }
+  .page-header p{ color:var(--text-dim); font-size:14px; max-width:620px; line-height:1.6; }
+
+  .layout-grid{
+    display:grid;
+    grid-template-columns:1.2fr 0.8fr;
+    gap:20px;
+    align-items:start;
+  }
+
+  .card-panel{
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:22px;
+    background:#0c1210;
+    margin-bottom:20px;
+  }
+  .card-panel h2{
+    font-family:var(--font-display);
+    font-size:16px;
+    font-weight:700;
+    margin-bottom:16px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+
+  .mode-tabs{
+    display:flex;
+    gap:8px;
+    background:#080d0a;
+    padding:4px;
+    border-radius:10px;
+    border:1px solid var(--border-soft);
+    margin-bottom:16px;
+  }
+  .mode-btn{
+    flex:1;
+    background:transparent;
+    border:none;
+    color:var(--text-dim);
+    padding:8px 12px;
+    border-radius:6px;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+    transition:all .15s;
+    font-family:var(--font-body);
+  }
+  .mode-btn.active{ background:#16281d; color:var(--green); }
+
+  .field{ margin-bottom:14px; }
+  .field label{
+    font-family:var(--font-mono);
+    font-size:11px;
+    color:var(--text-faint);
+    letter-spacing:0.8px;
+    text-transform:uppercase;
+    display:block;
+    margin-bottom:6px;
+  }
+  .field input, .field textarea{
+    width:100%;
+    background:#0a0f0c;
+    border:1px solid var(--border-soft);
+    border-radius:9px;
+    color:var(--text);
+    font-family:var(--font-mono);
+    font-size:13px;
+    padding:12px 14px;
+    outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .field textarea{ min-height:160px; resize:vertical; line-height:1.5; font-family:var(--font-body); }
+  .field input::placeholder, .field textarea::placeholder{ color:var(--text-faint); font-family:var(--font-body); }
+  .field input:focus, .field textarea:focus{ border-color:var(--green-dim); box-shadow:0 0 0 3px var(--green-glow); }
+
+  .actions{ display:flex; gap:10px; align-items:center; margin-top:16px; flex-wrap:wrap; }
+  .btn-primary{
+    background:var(--green);
+    color:#04120a;
+    border:none;
+    padding:12px 22px;
+    border-radius:9px;
+    font-weight:700;
+    font-size:13px;
+    display:flex; align-items:center; gap:8px;
+    cursor:pointer;
+    transition:transform .15s, box-shadow .15s;
+    font-family:var(--font-body);
+  }
+  .btn-primary:hover{ transform:translateY(-1px); box-shadow:0 6px 18px var(--green-glow); }
+  .btn-primary svg{ width:15px; height:15px; }
+
+  .btn-secondary{
+    border:1px solid var(--green-dim);
+    color:var(--green);
+    background:transparent;
+    padding:11px 18px;
+    border-radius:9px;
+    font-weight:600;
+    font-size:13px;
+    cursor:pointer;
+    font-family:var(--font-body);
+    transition:background .15s;
+  }
+  .btn-secondary:hover{ background:var(--green-glow); }
+
+  /* Results Layout */
+  .score-card{
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:18px;
+    background:#0a0f0c;
+    display:flex;
+    align-items:center;
+    gap:16px;
+    margin-bottom:16px;
+  }
+  .score-card.malicious{ border-color:#5c1d1d; background:#180b0b; }
+  .score-card.suspicious{ border-color:#634b19; background:#17120a; }
+  .score-card.clean{ border-color:var(--green-dim); background:#0c1a11; }
+
+  .score-val{ font-family:var(--font-display); font-size:32px; font-weight:700; }
+  .malicious .score-val{ color:var(--red); }
+  .suspicious .score-val{ color:var(--amber); }
+  .clean .score-val{ color:var(--green); }
+
+  .score-info h3{ font-size:15px; font-weight:700; margin-bottom:2px; }
+  .score-info p{ font-size:12px; color:var(--text-dim); }
+
+  /* AI Output Box */
+  .ai-box{
+    border:1px solid #3a2f5c;
+    border-radius:12px;
+    padding:16px;
+    background:radial-gradient(circle at top left, #1c112d, #0d0a14);
+    margin-bottom:16px;
+  }
+  .ai-tag{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    font-family:var(--font-mono);
+    font-size:11px;
+    font-weight:700;
+    color:var(--purple);
+    letter-spacing:1.5px;
+    margin-bottom:8px;
+  }
+  .ai-tag svg{ width:13px; height:13px; }
+  .ai-text{ font-size:13px; color:#dcd4ec; line-height:1.6; }
+
+  .flag-list{ list-style:none; display:flex; flex-direction:column; gap:8px; }
+  .flag-item{
+    padding:10px 12px;
+    border-radius:8px;
+    background:#080d0a;
+    border:1px solid var(--border-soft);
+    font-size:12.5px;
+    color:var(--text-dim);
+    display:flex;
+    align-items:flex-start;
+    gap:9px;
+  }
+  .flag-item.flagged{ border-left:3px solid var(--red); color:var(--text); }
+  .flag-item.passed{ border-left:3px solid var(--green); }
+  .badge-status{
+    font-family:var(--font-mono);
+    font-size:9.5px;
+    font-weight:700;
+    padding:2px 6px;
+    border-radius:4px;
+    flex-shrink:0;
+  }
+  .badge-status.alert{ background:#3a1414; color:var(--red); }
+  .badge-status.pass{ background:#102e1a; color:var(--green); }
+
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:#1f2b24; border-radius:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+
+  @media (max-width:1020px){
+    .layout-grid{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon hoodie-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 2c-3 0-5 2-5 5v2c-2 1-3 3-3 6v3c0 2 1 3 3 3h10c2 0 3-1 3-3v-3c0-3-1-5-3-6V7c0-3-2-5-5-5Z"/><circle cx="9.5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="12" r="1" fill="currentColor" stroke="none"/></svg>
+      </div>
+      <div class="brand-text">
+        <div class="name">THREAT HUNTER'S</div>
+        <div class="sub">DETECT. ANALYZE. PROTECT.</div>
+      </div>
+    </div>
+
+    <nav>
+      <a class="nav-item" href="Threat%20Hunters-dashboard.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Dashboard
+      </a>
+      <a class="nav-item" href="tools.html#scan">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        Scan Center
+      </a>
+      <a class="nav-item active" href="email-analysis.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+        Email Analysis
+        <svg class="nav-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 6 6 6-6 6"/></svg>
+      </a>
+      <a class="nav-item" href="tools.html#url">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7 7l1.5-1.5a5 5 0 0 0-7-7"/><path d="M14 11a5 5 0 0 0-7-7L5.5 5.5a5 5 0 0 0 7 7"/></svg>
+        URL Analysis
+      </a>
+      <a class="nav-item" href="tools.html#file">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+        File Analysis
+      </a>
+      <a class="nav-item" href="tools.html#lookup">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>
+        IP &amp; Domain Lookup
+      </a>
+      <a class="nav-item" href="tools.html#ioc">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg>
+        IOC Extractor
+      </a>
+      <a class="nav-item" href="tools.html#intel">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 11 4.6-2.3 8-6 8-11V5l-8-3Z"/></svg>
+        Threat Intelligence
+      </a>
+      <a class="nav-item" href="tools.html#reports">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 2h6l1 4h4v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6h4Z"/><path d="M9 11h6M9 15h6"/></svg>
+        Reports
+      </a>
+      <a class="nav-item" href="tools.html#history">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        History
+      </a>
+      <a class="nav-item" href="contact.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+        Contact
+      </a>
+      <a class="nav-item" href="about.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>
+        About
+      </a>
+    </nav>
+
+    <div class="sidebar-footer" style="margin-top:auto;">
+      © 2026 Threat Hunter's<br>All rights reserved.
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="status-pill">
+        <span class="dot"></span> SYSTEM ONLINE <span class="muted">&nbsp;Engine Active</span>
+      </div>
+      <div class="top-actions">
+        <div class="profile">
+          <div class="profile-text"><div class="who">Cyber Hunter</div><div class="role">Analyst</div></div>
+          <div class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2 4 5v6c0 5 3.4 8.7 8 11 4.6-2.3 8-6 8-11V5l-8-3Z"/></svg></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-header">
+      <div class="eyebrow"><span class="dot"></span> Email Security &amp; Phishing Forensics</div>
+      <h1>Email Analysis Engine</h1>
+      <p>Analyze email content, sender addresses, urgency red flags, and spoofed headers for social engineering attacks.</p>
+    </div>
+
+    <div class="layout-grid">
+      
+      <div class="card-panel">
+        <h2>Inspect Suspicious Message</h2>
+
+        <div class="mode-tabs">
+          <button class="mode-btn active" id="tabBody" onclick="setMode('body')">Structured Email</button>
+          <button class="mode-btn" id="tabHeader" onclick="setMode('header')">Raw Headers (.EML)</button>
+        </div>
+
+        <div id="structuredFields">
+          <div class="field">
+            <label>Sender Address (From)</label>
+            <input type="text" id="senderInput" placeholder="e.g. security-alert@paypal-update-desk.com">
+          </div>
+
+          <div class="field">
+            <label>Subject Line</label>
+            <input type="text" id="subjectInput" placeholder="e.g. Urgent: Your account has been suspended">
+          </div>
+        </div>
+
+        <div class="field">
+          <label id="contentLabel">Email Message Body</label>
+          <textarea id="emailBody" placeholder="Paste the message content, email body text, or copy-pasted body here..."></textarea>
+        </div>
+
+        <div class="actions">
+          <button class="btn-primary" onclick="analyzeEmailInput()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            Analyze Email
+          </button>
+          <button class="btn-secondary" onclick="loadPhishSample()">Load Phishing Sample</button>
+          <button class="btn-secondary" onclick="clearFields()">Clear</button>
+        </div>
+      </div>
+
+      <div>
+        
+        <div class="score-card" id="scoreCard">
+          <div class="score-val" id="scoreVal">--</div>
+          <div class="score-info">
+            <h3 id="verdictTitle">Awaiting Input</h3>
+            <p id="verdictSub">Paste email contents and click Analyze Email.</p>
+          </div>
+        </div>
+
+        <div class="ai-box">
+          <div class="ai-tag">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m13 2-9 12h7l-1 8 9-12h-7z"/></svg>
+            AI Forensic Evaluation (Gemini)
+          </div>
+          <div class="ai-text" id="aiOutput">
+            AI analysis engine will evaluate psychological manipulation tactics, tone urgency, and spoofing intent once triggered.
+          </div>
+        </div>
+
+        <div class="card-panel">
+          <h2>Detected Red Flags</h2>
+          <ul class="flag-list" id="flagsList">
+            <li class="flag-item"><span class="badge-status">IDLE</span> No analysis active.</li>
+          </ul>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// Paste your key locally here for AI testing (Do NOT commit actual key to GitHub)
+const GEMINI_API_KEY = "YOUR_GEMINI_API_KEY_HERE";
+
+let currentMode = 'body';
+
+function setMode(mode) {
+  currentMode = mode;
+  document.getElementById('tabBody').classList.toggle('active', mode === 'body');
+  document.getElementById('tabHeader').classList.toggle('active', mode === 'header');
+  document.getElementById('structuredFields').style.display = mode === 'body' ? 'block' : 'none';
+  document.getElementById('contentLabel').innerText = mode === 'body' ? 'Email Message Body' : 'Raw Email Headers';
+  document.getElementById('emailBody').placeholder = mode === 'body' 
+    ? 'Paste the message content, email body text, or copy-pasted body here...' 
+    : 'Paste raw headers (Received:, Authentication-Results:, DKIM-Signature:, Return-Path:)...';
+}
+
+async function runGeminiAnalysis(sender, subject, body) {
+  const aiOutput = document.getElementById('aiOutput');
+
+  if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_GEMINI_API_KEY_HERE") {
+    aiOutput.innerHTML = '<span style="color:var(--amber);">⚠️ Gemini API Key not configured. Rule-based heuristic checks completed above. Configure your Gemini API key to enable live AI reasoning.</span>';
+    return;
+  }
+
+  aiOutput.innerHTML = '<span style="color:var(--purple);">⚡ Gemini AI analyzing psychological tactics and email intent...</span>';
+
+  const promptText = `
+You are a senior cybersecurity email forensics analyst for "Threat Hunter's".
+Analyze the following email metadata and content for phishing, scam intent, and psychological manipulation:
+
+- Sender: ${sender || "Not specified"}
+- Subject: ${subject || "Not specified"}
+- Content:
+${body}
+
+Provide a concise 2-3 sentence technical assessment covering:
+1. Psychological pressure/tactics used.
+2. Core risk (credential theft, wire fraud, malware).
+3. Immediate advice for the user.
+Keep it sharp and professional.
+`;
+
+  try {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY
+      },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: promptText }] }]
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.candidates && data.candidates[0].content.parts[0].text) {
+      aiOutput.innerText = data.candidates[0].content.parts[0].text.trim();
+    } else if (data.error) {
+      aiOutput.innerText = "API Error: " + data.error.message;
+    } else {
+      aiOutput.innerText = "Unable to parse AI response.";
+    }
+  } catch (err) {
+    aiOutput.innerText = "Connection failed: " + err.message;
+  }
+}
+
+function analyzeEmailInput() {
+  const sender = document.getElementById('senderInput').value.trim();
+  const subject = document.getElementById('subjectInput').value.trim();
+  const body = document.getElementById('emailBody').value.trim();
+
+  if (!body && !sender && !subject) {
+    alert('Please enter email details or load a sample first.');
+    return;
+  }
+
+  let score = 0;
+  let items = [];
+  const fullText = `${sender} ${subject} ${body}`.toLowerCase();
+
+  // 1. Urgency Tactics
+  const urgencyPatterns = ['urgent', 'immediately', 'suspended', '24 hours', 'unauthorized', 'account restricted', 'compromised', 'action required', 'final notice'];
+  const matchedUrgency = urgencyPatterns.filter(w => fullText.includes(w));
+  if (matchedUrgency.length > 0) {
+    score += matchedUrgency.length * 12;
+    items.push({ type: 'alert', msg: `Urgency / Pressure phrases detected: "${matchedUrgency.join('", "')}"` });
+  }
+
+  // 2. Credential & Financial Harvesting
+  const lurePatterns = ['password', 'otp', 'verify account', 'crypto', 'gift card', 'wire transfer', 'invoice attached', 'login to update', 'billing failed'];
+  const matchedLures = lurePatterns.filter(w => fullText.includes(w));
+  if (matchedLures.length > 0) {
+    score += matchedLures.length * 15;
+    items.push({ type: 'alert', msg: `Credential/Financial harvest lures detected: "${matchedLures.join('", "')}"` });
+  }
+
+  // 3. Sender Impersonation
+  if (sender) {
+    if (/@(gmail|yahoo|outlook|hotmail|protonmail)\.com/i.test(sender) && /(bank|support|security|paypal|microsoft|apple|meta|amazon)/i.test(sender)) {
+      score += 35;
+      items.push({ type: 'alert', msg: `Brand impersonation: Corporate sender identity using public webmail provider (${sender})` });
+    }
+    if (/[0-9]{3,}|-(support|alert|desk|security|update)\./i.test(sender)) {
+      score += 20;
+      items.push({ type: 'alert', msg: `Suspicious sender domain structure: "${sender}"` });
+    }
+  }
+
+  // 4. Embedded Links
+  const links = body.match(/https?:\/\/[^\s"'<>]+/gi) || [];
+  if (links.length > 0) {
+    score += Math.min(25, links.length * 8);
+    items.push({ type: 'alert', msg: `Message contains ${links.length} embedded URL(s). Potential redirection targets.` });
+  }
+
+  score = Math.min(score, 100);
+
+  // Render Verdict
+  const scoreCard = document.getElementById('scoreCard');
+  const scoreVal = document.getElementById('scoreVal');
+  const verdictTitle = document.getElementById('verdictTitle');
+  const verdictSub = document.getElementById('verdictSub');
+
+  scoreCard.className = 'score-card';
+  scoreVal.innerText = score + '/100';
+
+  if (score >= 60) {
+    scoreCard.classList.add('malicious');
+    verdictTitle.innerText = 'High Risk Phishing Email';
+    verdictSub.innerText = 'High probability of social engineering or credential theft attempt.';
+  } else if (score >= 25) {
+    scoreCard.classList.add('suspicious');
+    verdictTitle.innerText = 'Suspicious Indicators Found';
+    verdictSub.innerText = 'Exercise caution. Verify through alternative out-of-band channels.';
+  } else {
+    scoreCard.classList.add('clean');
+    verdictTitle.innerText = 'No Critical Flags Detected';
+    verdictSub.innerText = 'Baseline heuristic checks clean. Maintain general vigilance.';
+    if (items.length === 0) {
+      items.push({ type: 'pass', msg: 'No known phishing signatures, brand spoofing, or panic keywords identified.' });
+    }
+  }
+
+  // Render Flags
+  const flagsList = document.getElementById('flagsList');
+  flagsList.innerHTML = items.map(item => `
+    <li class="flag-item ${item.type === 'alert' ? 'flagged' : 'passed'}">
+      <span class="badge-status ${item.type === 'alert' ? 'alert' : 'pass'}">${item.type === 'alert' ? 'FLAG' : 'PASS'}</span>
+      ${escapeHtml(item.msg)}
+    </li>
+  `).join('');
+
+  // Trigger Gemini Call
+  runGeminiAnalysis(sender, subject, body);
+}
+
+function loadPhishSample() {
+  setMode('body');
+  document.getElementById('senderInput').value = 'support@paypal-security-alert09.com';
+  document.getElementById('subjectInput').value = 'URGENT: Unauthorized login detected — Action required within 24 hours';
+  document.getElementById('emailBody').value = 'Dear customer,\n\nWe detected an unauthorized login attempt on your account from an unrecognized IP address. To prevent permanent suspension, please verify your account and password immediately.\n\nClick the link below to confirm your identity:\nhttps://paypal-security-alert09.com/verify-identity\n\nThank you,\nSecurity Desk';
+  analyzeEmailInput();
+}
+
+function clearFields() {
+  document.getElementById('senderInput').value = '';
+  document.getElementById('subjectInput').value = '';
+  document.getElementById('emailBody').value = '';
+  document.getElementById('scoreCard').className = 'score-card';
+  document.getElementById('scoreVal').innerText = '--';
+  document.getElementById('verdictTitle').innerText = 'Awaiting Input';
+  document.getElementById('verdictSub').innerText = 'Paste email contents and click Analyze Email.';
+  document.getElementById('flagsList').innerHTML = '<li class="flag-item"><span class="badge-status">IDLE</span> No analysis active.</li>';
+  document.getElementById('aiOutput').innerText = 'AI analysis engine will evaluate psychological manipulation tactics, tone urgency, and spoofing intent once triggered.';
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+}
+</script>
+</body>
+</html>
