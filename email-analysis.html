@@ -295,7 +295,7 @@
     </div>
 
     <nav>
-      <a class="nav-item" href="Threat%20Hunters-dashboard.html">
+      <a class="nav-item" href="index.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
         Dashboard
       </a>
@@ -474,7 +474,6 @@
 </div>
 
 <script>
-// LocalStorage Key Management Functions
 function openKeyModal() {
   const modal = document.getElementById('keyModal');
   modal.style.display = 'flex';
@@ -623,7 +622,6 @@ function analyzeEmailInput() {
 
   score = Math.min(score, 100);
 
-  // Render Verdict
   const scoreCard = document.getElementById('scoreCard');
   const scoreVal = document.getElementById('scoreVal');
   const verdictTitle = document.getElementById('verdictTitle');
@@ -649,7 +647,6 @@ function analyzeEmailInput() {
     }
   }
 
-  // Render Flags
   const flagsList = document.getElementById('flagsList');
   flagsList.innerHTML = items.map(item => `
     <li class="flag-item ${item.type === 'alert' ? 'flagged' : 'passed'}">
@@ -658,7 +655,6 @@ function analyzeEmailInput() {
     </li>
   `).join('');
 
-  // Trigger Gemini Call
   runGeminiAnalysis(sender, subject, body);
 }
 
